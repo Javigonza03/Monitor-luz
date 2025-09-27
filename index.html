@@ -1,170 +1,108 @@
-<!doctype html>
+ <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Monitor de Precios de la Luz (España)</title>
   <meta name="color-scheme" content="light dark"/>
-  <script>
-    // helper para fallback de CDN
-    function loadScript(srcs, cb){ (function tryOne(i){
-      var s=document.createElement('script'); s.src=srcs[i]; s.onload=cb;
-      s.onerror=function(){ if(i+1<srcs.length) tryOne(i+1); };
-      document.head.appendChild(s);
-    })(0); }
-  </script>
-  <!-- Tailwind -->
-  <script>loadScript([
-    "https://cdn.tailwindcss.com",
-    "https://cdn.jsdelivr.net/npm/tailwindcss@3.4.10/lib/index.js"
-  ], function(){ tailwind.config={darkMode:'class'}; });</script>
-  <style>html,body{height:100%}.tabular-nums{font-variant-numeric:tabular-nums}</style>
-  <noscript><style>body{padding:16px;font-family:sans-serif}</style>
-    Necesitas habilitar JavaScript para ver esta página.
-  </noscript>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; }
+    header { margin-bottom: 1rem; }
+    .card { border: 1px solid #ccc; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+    .dark body { background: #111; color: #eee; }
+    canvas { max-width: 100%; }
+  </style>
 </head>
-<body class="bg-gradient-to-b from-white to-zinc-50 dark:from-zinc-950 dark:to-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-screen">
-<div id="root" class="p-4">Cargando…</div>
+<body>
+  <header>
+    <h1>Monitor de Precios de la Luz (España)</h1>
+    <p>Ejemplo DEMO, datos ficticios generados</p>
+    <button id="darkBtn">🌓 Modo oscuro</button>
+  </header>
 
-<script>
-  // Carga React/ReactDOM, Recharts, FileSaver y Babel con fallback
-  loadScript([
-    "https://unpkg.com/react@18/umd/react.production.min.js",
-    "https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"
-  ], function(){
-    loadScript([
-      "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js",
-      "https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"
-    ], function(){
-      loadScript([
-        "https://unpkg.com/recharts/umd/Recharts.min.js",
-        "https://cdn.jsdelivr.net/npm/recharts/umd/Recharts.min.js"
-      ], function(){
-        loadScript([
-          "https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"
-        ], function(){
-          loadScript([
-            "https://unpkg.com/@babel/standalone/babel.min.js",
-            "https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"
-          ], startApp);
-        });
-      });
-    });
-  });
+  <div class="card">
+    <label>Consumo diario estimado: <span id="kwhLabel">5</span> kWh</label><br>
+    <input type="range" id="kwhSlider" min="1" max="30" step="0.5" value="5">
+  </div>
 
-  function startApp(){
-    // a partir de aquí, tu app original en JSX:
-  </script>
-  <script type="text/babel">
-    const { useEffect, useMemo, useState } = React;
-    const { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea } = Recharts;
-    const TZ="Europe/Madrid";
-    const fmtHour=(d)=>new Intl.DateTimeFormat("es-ES",{timeZone:TZ,hour:"2-digit",minute:"2-digit",hour12:false}).format(d);
-    const yyyy=(d)=>new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
-    function gen(base=new Date()){const d=new Date(base);d.setHours(0,0,0,0);const out=[];const B=70;for(let h=0;h<24;h++){const t=new Date(d.getTime()+h*3600*1000);const w=20*Math.sin(((h-7)/24)*Math.PI*2)+15*Math.sin(((h+2)/24)*Math.PI*4);const n=(Math.random()-.5)*6;out.push({datetime:t.toISOString(),price:Math.max(10,Math.round((B+w+n)*10)/10)});}return out;}
-    function toCSV(r){const H=["datetime","hour_local","price_eur_mwh","price_eur_kwh"];const f=new Intl.DateTimeFormat("en-CA",{timeZone:TZ,hour:"2-digit",minute:"2-digit",hour12:false});const b=r.map(x=>[x.datetime,f.format(new Date(x.datetime)),x.price,(x.price/1000).toFixed(5)].join(",")).join("\n");return [H.join(","),b].join("\n");}
-    const stats=(r)=>{if(!r?.length)return null;const p=r.map(x=>x.price);const a=p.reduce((x,y)=>x+y,0)/p.length;const mi=Math.min(...p),ma=Math.max(...p),iMin=p.indexOf(mi),iMax=p.indexOf(ma);return {avg:a,min:mi,max:ma,iMin,iMax};};
-    const curIdx=(r)=>{if(!r?.length)return -1;const now=new Date();const t=yyyy(now);return r.findIndex(x=>{const dt=new Date(x.datetime);return yyyy(dt)===t && dt.getHours()===now.getHours();});};
-    async function fetchURL(u){const res=await fetch(u);if(!res.ok)throw new Error("No se pudo obtener datos de la URL personalizada");const j=await res.json();if(!Array.isArray(j))throw new Error("El JSON debe ser un array de objetos { datetime, price }");return j.map(d=>({datetime:d.datetime,price:Number(d.price)}));}
-    async function fetchESIOS({token,date,geoIds=["8741"],dataset=600}){const url=`https://api.esios.ree.es/indicators/${dataset}?start_date=${date}T00:00:00&end_date=${date}T23:59:59&geos[]=${geoIds.join("&geos[]=")}`;const res=await fetch(url,{headers:{Accept:"application/json; application/vnd.esios-api-v2+json",Authorization:`Token token=${token}`}});if(!res.ok)throw new Error("ESIOS: error de red o credenciales");const j=await res.json();const v=j?.indicator?.values||[];return v.map(x=>({datetime:x.datetime,price:Number(x.value)}));}
-    function Tip({active,payload}){if(!active||!payload?.length)return null;const p=payload[0].payload;const hour=fmtHour(new Date(p.datetime));return(<div className="rounded-2xl border bg-white/90 dark:bg-zinc-900/90 px-3 py-2 text-sm shadow-lg"><div className="font-medium">{hour} h</div><div className="opacity-80">{p.price.toFixed(1)} €/MWh</div><div className="opacity-80">{(p.price/1000).toFixed(5)} €/kWh</div></div>);}
-    function App(){
-      const [date,setDate]=useState(()=>yyyy(new Date()));
-      const [mode,setMode]=useState("demo");
-      const [customURL,setCustomURL]=useState("");
-      const [token,setToken]=useState("");
-      const [dataset,setDataset]=useState("600");
-      const [geo,setGeo]=useState("8741");
-      const [rows,setRows]=useState(()=>gen());
-      const [loading,setLoading]=useState(false);
-      const [error,setError]=useState("");
-      const [dailyKWh,setDailyKWh]=useState(5);
-      const [profile,setProfile]=useState(()=>new Array(24).fill(0).map((_,i)=> i>=19&&i<=23?0.35:0.65/19));
-      const s=useMemo(()=>stats(rows),[rows]);
-      const now=useMemo(()=>curIdx(rows),[rows]);
-      useEffect(()=>{(async()=>{setError("");setLoading(true);try{if(mode==="demo"){setRows(gen(new Date(date+"T00:00:00")));}else if(mode==="custom"&&customURL){setRows(await fetchURL(customURL));}else if(mode==="esios"&&token){setRows(await fetchESIOS({token,date,geoIds:geo.split(",").map(x=>x.trim()),dataset:Number(dataset)}));}else{setRows(gen(new Date(date+"T00:00:00")));}}catch(e){console.error(e);setError(e?.message||"Error al cargar datos");}finally{setLoading(false);}})();},[mode,customURL,token,dataset,geo,date]);
-      const cheap=useMemo(()=>!rows?.length?[]:[...rows].map((r,i)=>({...r,i})).sort((a,b)=>a.price-b.price).slice(0,5).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime)),[rows]);
-      const exp=useMemo(()=>!rows?.length?[]:[...rows].map((r,i)=>({...r,i})).sort((a,b)=>b.price-a.price).slice(0,5).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime)),[rows]);
-      const cost=useMemo(()=>{const k=rows.map(r=>r.price/1000);const tw=profile.reduce((a,b)=>a+b,0)||1;const n=profile.map(w=>w/tw);const hk=n.map(w=>w*dailyKWh);const c=hk.map((x,i)=>x*(k[i]??0));return{hourlyKWh:hk,costs:c,total:c.reduce((a,b)=>a+b,0)};},[rows,profile,dailyKWh]);
-      const exportCSV=()=>{const csv=toCSV(rows);const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});saveAs(blob,`precios-luz-${date}.csv`);};
-      return (
-        <div className="mx-auto max-w-6xl p-4 md:p-6 lg:p-8">
-          <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-            <div><h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Monitor de Precios de la Luz (España)</h1>
-            <p className="text-xs sm:text-sm opacity-70">Precios horarios, análisis y calculadora • Zona horaria: Europe/Madrid</p></div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button onClick={()=>document.documentElement.classList.toggle('dark')} className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm shadow-sm hover:shadow transition"><span>🌓</span> Modo oscuro</button>
-              <button onClick={exportCSV} className="flex-1 sm:flex-none rounded-2xl border px-3 py-2 text-sm shadow-sm hover:shadow transition">Descargar CSV</button>
-            </div>
-          </header>
+  <div class="card">
+    <h2>Precios horarios</h2>
+    <canvas id="chart" height="200"></canvas>
+  </div>
 
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <div className="rounded-2xl border p-4">
-              <label className="text-xs uppercase tracking-wide opacity-70">Fecha</label>
-              <input type="date" value={date} onChange={(e)=>setDate(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 bg-transparent"/>
-              <p className="text-xs mt-2 opacity-70">Cambia el día para ver el perfil de 24 horas.</p>
-            </div>
-            <div className="rounded-2xl border p-4">
-              <label className="text-xs uppercase tracking-wide opacity-70">Fuente de datos</label>
-              <select value={mode} onChange={(e)=>setMode(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 bg-transparent">
-                <option value="demo">DEMO (sin API)</option>
-                <option value="custom">URL personalizada (JSON)</option>
-                <option value="esios">ESIOS / Red Eléctrica (token)</option>
-              </select>
-              {mode==="custom" && (<div className="mt-3">
-                <input placeholder='Pega una URL que devuelva [{ datetime, price }]' value={customURL} onChange={(e)=>setCustomURL(e.target.value)} className="w-full rounded-xl border px-3 py-2 bg-transparent"/>
-                <p className="text-xs mt-2 opacity-70">Ej.: {`{ datetime: "2025-09-27T00:00:00Z", price: 65.3 }`}</p>
-              </div>)}
-              {mode==="esios" && (<div className="mt-3 grid grid-cols-1 gap-2">
-                <input placeholder="Token ESIOS" value={token} onChange={(e)=>setToken(e.target.value)} className="w-full rounded-xl border px-3 py-2 bg-transparent"/>
-                <input placeholder="Dataset (p. ej. 600)" value={dataset} onChange={(e)=>setDataset(e.target.value)} className="w-full rounded-xl border px-3 py-2 bg-transparent"/>
-                <input placeholder="Geo IDs separados por coma (p. ej. 8741)" value={geo} onChange={(e)=>setGeo(e.target.value)} className="w-full rounded-xl border px-3 py-2 bg-transparent"/>
-                <p className="text-xs opacity-70">Revisa la documentación de ESIOS para indicador y zona.</p>
-              </div>)}
-            </div>
-            <div className="rounded-2xl border p-4">
-              <label className="text-xs uppercase tracking-wide opacity-70">Consumo diario estimado</label>
-              <div className="mt-1 flex items-center gap-2">
-                <input type="range" min="1" max="30" step="0.5" value={dailyKWh} onChange={(e)=>setDailyKWh(parseFloat(e.target.value))} className="flex-1"/>
-                <div className="w-24 text-right tabular-nums">{dailyKWh.toFixed(1)} kWh</div>
-              </div>
-              <p className="text-xs mt-2 opacity-70">Ajusta para estimar el coste diario con el perfil horario.</p>
-            </div>
-          </section>
+  <div class="card">
+    <h2>Resumen</h2>
+    <p>Precio medio: <span id="avg"></span> €/MWh</p>
+    <p>Mínimo: <span id="min"></span> €/MWh</p>
+    <p>Máximo: <span id="max"></span> €/MWh</p>
+    <p>Coste diario estimado: <span id="cost"></span> €</p>
+  </div>
 
-          {error && (<div className="mb-4 rounded-2xl border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-900/30 p-4 text-red-700 dark:text-red-200">⚠️ {error}</div>)}
-
-          <section className="rounded-2xl border p-4 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium">Precios horarios ({date})</h2>
-              {loading && <div className="text-sm opacity-70">Cargando…</div>}
-            </div>
-            <div className="h-64 md:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={rows} margin={{left:8,right:8,top:8,bottom:8}}>
-                  <XAxis dataKey={(d)=> new Date(d.datetime).toLocaleTimeString("es-ES",{timeZone:TZ,hour:"2-digit",minute:"2-digit",hour12:false})} tick={{fontSize:12}}/>
-                  <YAxis domain={["auto","auto"]} tick={{fontSize:12}} tickFormatter={(v)=>`${v}€`}/>
-                  <Tooltip content={<Tip/>}/>
-                  <Line type="monotone" dataKey="price" dot={false} strokeWidth={2}/>
-                  {now>=0 && rows[now] && <ReferenceArea x1={rows[now]?.datetime} x2={rows[now]?.datetime}/>}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-        </div>
-      );
-    }
-    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
-  </script>
-
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // Si en 5s no se montó la app, muestra aviso (scripts bloqueados)
-    setTimeout(function(){
-      if(document.getElementById('root').textContent.trim()==='Cargando…'){
-        document.getElementById('root').innerHTML =
-          '<div class="p-4 text-sm text-red-700 bg-red-50 rounded-xl">No se pudieron cargar los scripts externos (posible bloqueo del navegador/red). Prueba en Chrome o desactiva el bloqueo para github.io.</div>';
+    // Generador DEMO de datos horarios
+    function generarDatos() {
+      const datos = [];
+      const base = 70;
+      for (let h = 0; h < 24; h++) {
+        const variacion = 20 * Math.sin(((h - 7) / 24) * Math.PI * 2);
+        const ruido = (Math.random() - 0.5) * 6;
+        const precio = Math.max(10, Math.round((base + variacion + ruido) * 10) / 10);
+        datos.push({ hora: h, precio });
       }
-    }, 5000);
+      return datos;
+    }
+
+    let datos = generarDatos();
+    let consumoDiario = 5;
+
+    // Calcular métricas
+    function calcularResumen() {
+      const precios = datos.map(d => d.precio);
+      const avg = (precios.reduce((a,b) => a+b,0)/precios.length).toFixed(1);
+      const min = Math.min(...precios).toFixed(1);
+      const max = Math.max(...precios).toFixed(1);
+      const coste = (consumoDiario * (avg/1000)).toFixed(2);
+
+      document.getElementById("avg").textContent = avg;
+      document.getElementById("min").textContent = min;
+      document.getElementById("max").textContent = max;
+      document.getElementById("cost").textContent = coste;
+    }
+
+    // Gráfico con Chart.js
+    const ctx = document.getElementById("chart").getContext("2d");
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: datos.map(d => d.hora + ":00"),
+        datasets: [{
+          label: "€/MWh",
+          data: datos.map(d => d.precio),
+          borderWidth: 2,
+          fill: false,
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    // Slider consumo
+    document.getElementById("kwhSlider").addEventListener("input", (e)=>{
+      consumoDiario = parseFloat(e.target.value);
+      document.getElementById("kwhLabel").textContent = consumoDiario;
+      calcularResumen();
+    });
+
+    // Botón modo oscuro
+    document.getElementById("darkBtn").addEventListener("click", ()=>{
+      document.documentElement.classList.toggle("dark");
+    });
+
+    calcularResumen();
   </script>
 </body>
-</html>
+</html>         
